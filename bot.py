@@ -10,26 +10,43 @@ CHANNEL_ID = int(os.getenv("TARGET_CHANNEL_ID"))
 KEYWORDS_FILE = "keywords.json"
 KEYWORDS = []
 
-# Keywords laden
-def load_keywords():
-    global KEYWORDS
-    if os.path.exists(KEYWORDS_FILE):
-        with open(KEYWORDS_FILE, "r", encoding="utf-8") as f:
-            KEYWORDS = json.load(f)
-    else:
-        KEYWORDS = []
-
 # Keywords speichern
 def save_keywords():
     with open(KEYWORDS_FILE, "w", encoding="utf-8") as f:
         json.dump(KEYWORDS, f, ensure_ascii=False, indent=2)
 
+# Keywords laden mit Fallback
+def load_keywords():
+    global KEYWORDS
+    try:
+        if os.path.exists(KEYWORDS_FILE):
+            with open(KEYWORDS_FILE, "r", encoding="utf-8") as f:
+                data = f.read().strip()
+                if data:
+                    KEYWORDS = json.loads(data)
+                else:
+                    raise ValueError("keywords.json ist leer")
+        else:
+            raise FileNotFoundError
+    except (json.JSONDecodeError, ValueError, FileNotFoundError):
+        KEYWORDS = [
+            "morgen",
+            "moin",
+            "servus",
+            "hallo",
+            "abend",
+            "schönen tag",
+            "schönen abend",
+            "schönes wochenende"
+        ]
+        save_keywords()
+
 load_keywords()
 
 @client.event
 async def on_ready():
-    print(f"Bot online als {client.user}")
-    print(f"Aktive Keywords: {KEYWORDS}")
+    print(f"✅ Bot online als {client.user}")
+    print(f"📋 Aktive Keywords: {KEYWORDS}")
 
 @client.event
 async def on_message(message):
@@ -68,7 +85,7 @@ async def on_message(message):
         else:
             await message.channel.send("⚠️ Keyword existiert nicht.")
 
-    # Keywords anzeigen
+    # Liste anzeigen
     elif content == "!listkeywords":
         if KEYWORDS:
             await message.channel.send("📋 Aktive Keywords:\n" + "\n".join(f"- {kw}" for kw in KEYWORDS))
