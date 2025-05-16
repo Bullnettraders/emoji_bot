@@ -7,6 +7,7 @@ intents.message_content = True
 client = discord.Client(intents=intents)
 
 CHANNEL_ID = int(os.getenv("TARGET_CHANNEL_ID"))
+CONTROL_CHANNEL_ID = int(os.getenv("CONTROL_CHANNEL_ID"))
 KEYWORDS_FILE = "keywords.json"
 KEYWORDS = []
 
@@ -47,6 +48,8 @@ load_keywords()
 async def on_ready():
     print(f"✅ Bot online als {client.user}")
     print(f"📋 Aktive Keywords: {KEYWORDS}")
+    print(f"🎯 Reagiert in Channel-ID: {CHANNEL_ID}")
+    print(f"🛠️ Befehle erlaubt in Channel-ID: {CONTROL_CHANNEL_ID}")
 
 @client.event
 async def on_message(message):
@@ -55,41 +58,38 @@ async def on_message(message):
 
     content = message.content.strip().lower()
 
-    if message.channel.id != CHANNEL_ID:
-        return
+    # 🤗 Reaktion nur im Reaktions-Channel
+    if message.channel.id == CHANNEL_ID:
+        if any(word in content for word in KEYWORDS):
+            try:
+                await message.add_reaction("🤗")
+            except discord.HTTPException:
+                pass
 
-    # Emoji-Reaktion
-    if any(word in content for word in KEYWORDS):
-        try:
-            await message.add_reaction("🤗")
-        except discord.HTTPException:
-            pass
+    # 💬 Befehle nur im Steuer-Channel
+    if message.channel.id == CONTROL_CHANNEL_ID:
+        if content.startswith("!addkeyword "):
+            new_kw = content[12:].strip()
+            if new_kw and new_kw not in KEYWORDS:
+                KEYWORDS.append(new_kw)
+                save_keywords()
+                await message.channel.send(f"✅ Keyword **{new_kw}** hinzugefügt.")
+            else:
+                await message.channel.send("⚠️ Keyword existiert bereits oder ist leer.")
 
-    # Keyword hinzufügen
-    if content.startswith("!addkeyword "):
-        new_kw = content[12:].strip()
-        if new_kw and new_kw not in KEYWORDS:
-            KEYWORDS.append(new_kw)
-            save_keywords()
-            await message.channel.send(f"✅ Keyword **{new_kw}** hinzugefügt.")
-        else:
-            await message.channel.send("⚠️ Keyword existiert bereits oder ist leer.")
+        elif content.startswith("!removekeyword "):
+            kw = content[16:].strip()
+            if kw in KEYWORDS:
+                KEYWORDS.remove(kw)
+                save_keywords()
+                await message.channel.send(f"❌ Keyword **{kw}** entfernt.")
+            else:
+                await message.channel.send("⚠️ Keyword existiert nicht.")
 
-    # Keyword entfernen
-    elif content.startswith("!removekeyword "):
-        kw = content[16:].strip()
-        if kw in KEYWORDS:
-            KEYWORDS.remove(kw)
-            save_keywords()
-            await message.channel.send(f"❌ Keyword **{kw}** entfernt.")
-        else:
-            await message.channel.send("⚠️ Keyword existiert nicht.")
-
-    # Liste anzeigen
-    elif content == "!listkeywords":
-        if KEYWORDS:
-            await message.channel.send("📋 Aktive Keywords:\n" + "\n".join(f"- {kw}" for kw in KEYWORDS))
-        else:
-            await message.channel.send("🚫 Keine Keywords vorhanden.")
+        elif content == "!listkeywords":
+            if KEYWORDS:
+                await message.channel.send("📋 Aktive Keywords:\n" + "\n".join(f"- {kw}" for kw in KEYWORDS))
+            else:
+                await message.channel.send("🚫 Keine Keywords vorhanden.")
 
 client.run(os.getenv("DISCORD_TOKEN"))
